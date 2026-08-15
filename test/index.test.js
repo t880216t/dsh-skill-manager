@@ -628,7 +628,7 @@ describe("skillManager.installZip / 仓库接口", () => {
         host: "https://git.vemic.com",
         owner: "mic-share/mic-ai-test",
         name: "supertester",
-        branch: "master",
+        branch: "",
         suite: true
       }
     ]);

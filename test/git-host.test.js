@@ -120,11 +120,70 @@ test("runAutoInstallOnce：拉取失败不写标记，下次启动重试", async
     attempts += 1;
     throw new Error("下载失败（DOWNLOAD_FAILED）：模拟断网");
   };
+  const failingClone = async () => { throw new Error("克隆失败（CLONE_FAILED）：模拟断网"); };
   const repos = [{ host: "https://git.vemic.com", owner: "g/s", name: "supertester", branch: "master", suite: true }];
-  const first = await runAutoInstallOnce({ dshHome, destRoot, repos, fetchArchive: failing });
+  const first = await runAutoInstallOnce({ dshHome, destRoot, repos, fetchArchive: failing, cloneTree: failingClone });
   assert.equal(first.ran, true);
   assert.equal(first.failures.length, 1);
-  const second = await runAutoInstallOnce({ dshHome, destRoot, repos, fetchArchive: failing });
+  const second = await runAutoInstallOnce({ dshHome, destRoot, repos, fetchArchive: failing, cloneTree: failingClone });
   assert.equal(second.ran, true);
   assert.equal(attempts, 2);
+});
+
+// ── git clone 回退（归档端点被网关拒绝时的套件拉取路径）───────────────────
+
+test("cloneRepoTree：从本地 git 仓库浅克隆出可安装的树", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const repo = await mkdtemp(join(tmpdir(), "dsh-src-repo-"));
+  execFileSync("git", ["init", "-q", "-b", "master", repo]);
+  await mkdir(join(repo, "skills", "using-supertester"), { recursive: true });
+  await writeFile(join(repo, "skills", "using-supertester", "SKILL.md"), SKILL_MD("using-supertester"));
+  await mkdir(join(repo, "scripts"), { recursive: true });
+  await writeFile(join(repo, "scripts", "st.py"), "print('st')\n");
+  execFileSync("git", ["-C", repo, "add", "-A"]);
+  execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init"]);
+
+  const { cloneRepoTree } = await import("../lib/skill-suite.js");
+  const { dir, cleanup } = await cloneRepoTree({ url: repo, branch: "master" });
+  try {
+    assert.equal(await readFile(join(dir, "scripts", "st.py"), "utf8"), "print('st')\n");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("installSuiteFromRepoDir：与归档安装同构", async () => {
+  const source = await mkdtemp(join(tmpdir(), "dsh-suite-src-"));
+  await mkdir(join(source, "skills", "using-supertester"), { recursive: true });
+  await writeFile(join(source, "skills", "using-supertester", "SKILL.md"), SKILL_MD("using-supertester"));
+  await mkdir(join(source, "scripts"), { recursive: true });
+  await writeFile(join(source, "scripts", "st.py"), "print('st')\n");
+
+  const { installSuiteFromRepoDir } = await import("../lib/skill-suite.js");
+  const destRoot = await mkdtemp(join(tmpdir(), "dsh-suite-"));
+  const result = await installSuiteFromRepoDir(source, { destRoot });
+  assert.deepEqual(result.installed.sort(), ["scripts", "using-supertester"]);
+  assert.equal(await readFile(join(destRoot, "scripts", "st.py"), "utf8"), "print('st')\n");
+});
+
+test("runAutoInstallOnce：归档失败时回退 git clone，成功后写标记", async () => {
+  const dshHome = await mkdtemp(join(tmpdir(), "dsh-home-"));
+  const destRoot = join(dshHome, "skills");
+  const source = await mkdtemp(join(tmpdir(), "dsh-suite-src-"));
+  await mkdir(join(source, "skills", "using-supertester"), { recursive: true });
+  await writeFile(join(source, "skills", "using-supertester", "SKILL.md"), SKILL_MD("using-supertester"));
+
+  const failingArchive = async () => { throw new Error("下载失败（DOWNLOAD_FAILED）状态 406"); };
+  let cloned = 0;
+  const cloneTree = async () => {
+    cloned += 1;
+    return { dir: source, cleanup: async () => {} };
+  };
+  const repos = [{ host: "https://git.vemic.com", owner: "g/s", name: "supertester", branch: "master", suite: true }];
+  const first = await runAutoInstallOnce({ dshHome, destRoot, repos, fetchArchive: failingArchive, cloneTree });
+  assert.equal(first.failures.length, 0);
+  assert.equal(cloned, 1);
+  assert.equal(await readFile(join(destRoot, "using-supertester", "SKILL.md"), "utf8"), SKILL_MD("using-supertester"));
+  const second = await runAutoInstallOnce({ dshHome, destRoot, repos, fetchArchive: failingArchive, cloneTree });
+  assert.equal(second.ran, false);
 });
