@@ -187,3 +187,31 @@ test("runAutoInstallOnce：归档失败时回退 git clone，成功后写标记"
   const second = await runAutoInstallOnce({ dshHome, destRoot, repos, fetchArchive: failingArchive, cloneTree });
   assert.equal(second.ran, false);
 });
+
+// ── 目录树版发现/单技能安装（discover/install 的 git clone 回退共用核心）──
+
+test("discoverFromTree：从磁盘仓库树扫描可发现技能", async () => {
+  const scan = await mkdtemp(join(tmpdir(), "dsh-tree-"));
+  await mkdir(join(scan, "skills", "using-supertester"), { recursive: true });
+  await writeFile(join(scan, "skills", "using-supertester", "SKILL.md"), SKILL_MD("using-supertester"));
+  const { discoverFromTree } = await import("../lib/skill-repo.js");
+  const skills = await discoverFromTree(scan, "mic-share/mic-ai-test", "supertester", "feat/x");
+  assert.equal(skills.length, 1);
+  assert.equal(skills[0].name, "using-supertester");
+  assert.equal(skills[0].directory, "skills/using-supertester");
+});
+
+test("installFromRepoTree：从磁盘仓库树安装单个技能", async () => {
+  const scan = await mkdtemp(join(tmpdir(), "dsh-tree-"));
+  await mkdir(join(scan, "skills", "using-supertester"), { recursive: true });
+  await writeFile(join(scan, "skills", "using-supertester", "SKILL.md"), SKILL_MD("using-supertester"));
+  const destRoot = await mkdtemp(join(tmpdir(), "dsh-dest-"));
+  const { installFromRepoTree } = await import("../lib/skill-repo.js");
+  const result = await installFromRepoTree(scan, {
+    owner: "mic-share/mic-ai-test", name: "supertester", branch: "feat/x",
+    directory: "skills/using-supertester", destRoot
+  });
+  assert.equal(result.conflict, undefined);
+  assert.equal(result.name, "using-supertester");
+  assert.equal(await readFile(join(destRoot, "using-supertester", "SKILL.md"), "utf8"), SKILL_MD("using-supertester"));
+});
