@@ -154,7 +154,7 @@ beforeEach(async () => {
     sessions: { s1: { header: { cwd: projectRoot } } },
     agents: { s1: {} }
   });
-  apply(ctx);
+  apply(ctx, { autoInstall: false });
   gateway = ctx.provided.get("skillManager");
   assert.ok(gateway, "apply 后应注册 skillManager 服务");
 });
@@ -241,7 +241,7 @@ describe("skillManager.list", () => {
       agents: { s2: { preset: "demo" } },
       agentPresets: { serviceFor: (live, key) => (key === "skills" ? scopedRegistry : undefined) }
     });
-    apply(scopedCtx);
+    apply(scopedCtx, { autoInstall: false });
     const scopedGateway = scopedCtx.provided.get("skillManager");
 
     const { skills } = await scopedGateway.list("s2");
@@ -265,7 +265,7 @@ describe("skillManager.list", () => {
       registerProvider() { return () => {}; }
     };
     const emptyCtx = makeContext({ registry: emptyRegistry, sessions: {}, agents: {} });
-    apply(emptyCtx);
+    apply(emptyCtx, { autoInstall: false });
     const emptyGateway = emptyCtx.provided.get("skillManager");
 
     const { skills } = await emptyGateway.list(undefined);
@@ -621,14 +621,19 @@ describe("skillManager.installZip / 仓库接口", () => {
     );
   });
 
-  test("首次运行注入预设仓库（anthropics/skills、obra/superpowers）并落盘", async () => {
+  test("首次运行注入预设仓库（内部 supertester 套件）并落盘", async () => {
     let { repos } = await gateway.listRepos();
     assert.deepEqual(repos, [
-      { owner: "anthropics", name: "skills", branch: "main" },
-      { owner: "obra", name: "superpowers", branch: "main" }
+      {
+        host: "https://git.vemic.com",
+        owner: "mic-share/mic-ai-test",
+        name: "supertester",
+        branch: "master",
+        suite: true
+      }
     ]);
     const raw = await readFile(join(homeRoot, ".dsh", "dsh-skill-manager.json"), "utf8");
-    assert.equal(JSON.parse(raw).repos.length, 2);
+    assert.equal(JSON.parse(raw).repos.length, 1);
   });
 
   test("addRepo / listRepos / removeRepo：去重与状态文件持久化", async () => {
@@ -637,24 +642,23 @@ describe("skillManager.installZip / 仓库接口", () => {
     // 同名仓库更新分支（不重复添加）
     await gateway.addRepo("owner-a", "skills-repo", "dev");
     let { repos } = await gateway.listRepos();
-    assert.equal(repos.length, 4); // 2 预设 + 2 新增
+    assert.equal(repos.length, 3); // 1 预设 + 2 新增
     const a = repos.find((r) => r.owner === "owner-a");
     assert.equal(a.branch, "dev");
 
     // 状态文件真实写入
     const raw = await readFile(join(homeRoot, ".dsh", "dsh-skill-manager.json"), "utf8");
     const parsed = JSON.parse(raw);
-    assert.equal(parsed.repos.length, 4);
+    assert.equal(parsed.repos.length, 3);
     assert.deepEqual([...parsed.enabled].sort(), []);
 
     await gateway.removeRepo("owner-a", "skills-repo");
     ({ repos } = await gateway.listRepos());
-    assert.equal(repos.length, 3);
+    assert.equal(repos.length, 2);
   });
 
   test("预设仓库删光后保持为空（不复活）", async () => {
-    await gateway.removeRepo("anthropics", "skills");
-    await gateway.removeRepo("obra", "superpowers");
+    await gateway.removeRepo("mic-share/mic-ai-test", "supertester");
     let { repos } = await gateway.listRepos();
     assert.deepEqual(repos, []);
     // 重新读状态（模拟重启）仍然是空
@@ -667,7 +671,7 @@ describe("skillManager.installZip / 仓库接口", () => {
   test("addRepo：非法仓库坐标拒绝（状态不变）", async () => {
     await assert.rejects(() => gateway.addRepo("bad/owner", "r", "main"), /INVALID_REPO_REF/);
     const { repos } = await gateway.listRepos();
-    assert.equal(repos.length, 2); // 仍只有预设仓库
+    assert.equal(repos.length, 1); // 仍只有预设仓库
   });
 
   test("discoverRepo / installFromRepo：校验先行（不触发网络）", async () => {

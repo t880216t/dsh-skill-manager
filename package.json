@@ -30,5 +30,11 @@
     "lib",
     "cordis.patch.yml",
     "README.md"
-  ]
+  ],
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-typert-protocol": "*"
+  }
 }

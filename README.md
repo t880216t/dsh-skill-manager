@@ -6,6 +6,15 @@
 
 ![DSH 技能管理预览](docs/screenshots/social-preview.jpg)
 
+## 产品 fork 说明（Supertester Desktop）
+
+本仓库是 [sulfide2085/dsh-skill-manager](https://github.com/sulfide2085/dsh-skill-manager) 的产品 fork，为 Supertester Desktop 增加：
+
+- **自定义 git host**：仓库条目可带 `host`（内部 GitLab 等），归档地址使用 GitLab `/-/archive/` 形状，owner 支持子组路径；私有实例可用环境变量 `DSH_SKILL_GIT_TOKEN` 走 `PRIVATE-TOKEN` 头鉴权。
+- **套件安装**（`suite: true`）：整树安装内容集——`skills/*` 平铺进技能根，`scripts/`、`templates/`、`agents/`、`assets/` 并排落位，保持技能对支撑目录的相对约定。
+- **首启自动安装**：首次启动自动拉取安装预置的套件仓库（成功后写标记跳过，失败下次启动重试，不阻断启动）；行内配置 `autoInstall: false` 可关闭。
+- **预置仓库**改为内部 Supertester 套件仓库。
+
 ## 这是什么
 
 DSH（DeepSeek Harness）的技能管理插件。技能文件散落在各处：DSH 自己的技能目录、Codex 的 `~/.codex/skills`、Claude 的 `~/.claude/skills`、GitHub 上的技能仓库。本插件在设置页加了一个"技能管理"分区，把这些来源的技能收进一个面板统一查看和管理。
