@@ -215,3 +215,25 @@ test("installFromRepoTree：从磁盘仓库树安装单个技能", async () => {
   assert.equal(result.name, "using-supertester");
   assert.equal(await readFile(join(destRoot, "using-supertester", "SKILL.md"), "utf8"), SKILL_MD("using-supertester"));
 });
+
+// ── 统一来源的套件安装（discover 时对 suite 仓库自动补装缺失技能）─────────
+
+test("installSuiteFromSource：buffer 与 dir 两种来源同构，且幂等补装", async () => {
+  const { installSuiteFromSource } = await import("../lib/skill-suite.js");
+  const destRoot = await mkdtemp(join(tmpdir(), "dsh-suite-"));
+  const first = await installSuiteFromSource(
+    { kind: "buffer", buffer: await suiteArchive() },
+    { destRoot }
+  );
+  assert.deepEqual(first.installed.sort(), ["scripts", "shared", "templates", "using-supertester"]);
+
+  // dir 来源 + 已有条目：只补缺失的
+  const source = await mkdtemp(join(tmpdir(), "dsh-suite-src-"));
+  await mkdir(join(source, "skills", "using-supertester"), { recursive: true });
+  await writeFile(join(source, "skills", "using-supertester", "SKILL.md"), SKILL_MD("using-supertester"));
+  await mkdir(join(source, "skills", "new-skill"), { recursive: true });
+  await writeFile(join(source, "skills", "new-skill", "SKILL.md"), SKILL_MD("new-skill"));
+  const second = await installSuiteFromSource({ kind: "dir", dir: source }, { destRoot });
+  assert.deepEqual(second.installed, ["new-skill"]);
+  assert.ok(second.skipped.includes("using-supertester"));
+});
