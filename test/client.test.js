@@ -108,14 +108,14 @@ describe("client apply", () => {
     assert.equal(ctx.calls.register.dicts.en.marketSearch, "Search skills in GitHub repos");
   });
 
-  test("挂载远程贡献清单（10 个描述符）", () => {
+  test("挂载远程贡献清单（11 个描述符）", () => {
     const ctx = makeCtx(makeRemoteStub());
     mod.apply(ctx);
     const descriptors = ctx.calls.mount.descriptors;
-    assert.equal(descriptors.length, 10);
+    assert.equal(descriptors.length, 11);
     assert.deepEqual(
       descriptors.map((descriptor) => descriptor.method),
-      ["list", "content", "setEnabled", "setSourceEnabled", "installZip", "listRepos", "addRepo", "removeRepo", "discoverRepo", "installFromRepo"]
+      ["list", "content", "setEnabled", "setSourceEnabled", "installZip", "updateSuite", "listRepos", "addRepo", "removeRepo", "discoverRepo", "installFromRepo"]
     );
   });
 
